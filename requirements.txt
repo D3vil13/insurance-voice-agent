@@ -1,0 +1,50 @@
+# ====================================================================
+# Insurance Voice Agent - Python Dependencies
+# ====================================================================
+
+# FastAPI and Web Server
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Database and Embeddings
+chromadb>=0.4.18
+langchain-community>=0.0.38
+sentence-transformers>=2.2.2
+
+# Voice Processing (Speech-to-Text and Text-to-Speech)
+faster-whisper>=0.10.0
+google-cloud-texttospeech>=2.14.1
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# LLM Integration
+requests>=2.31.0
+langgraph>=0.0.26
+
+# Utilities
+python-dotenv>=1.0.0
+numpy>=1.26.0
+pydantic>=2.5.0
+
+# ====================================================================
+# Installation Instructions:
+# ====================================================================
+# 
+# Install all dependencies:
+#   pip install -r requirements.txt
+#
+# Or install with upgrade:
+#   pip install -r requirements.txt --upgrade
+#
+# ====================================================================
+# Notes:
+# ====================================================================
+#
+# - Google Cloud TTS is optional (app has fallback TTS)
+# - sounddevice/soundfile are for audio I/O
+# - faster-whisper is for speech-to-text
+# - ChromaDB is the vector database (pre-populated with 152 docs)
+# - sentence-transformers for embeddings
+#
+# ====================================================================

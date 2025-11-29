@@ -1,0 +1,47 @@
+# Azure deployment ignore file
+# Don't upload these to Azure
+
+# Frontend files (deploy separately to Vercel)
+frontend/
+
+# Docker files (not needed for direct Python deployment)
+Dockerfile
+.dockerignore
+
+# Development files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Logs (will be created on Azure)
+logs/
+*.log
+
+# Audio output (will be created on Azure)
+api_audio_output/
+
+# Test files
+test_*.py
+diagnostic_test.py
+
+# Documentation
+README.md
+DEPLOYMENT_GUIDE.md
+QUICK_START.md
