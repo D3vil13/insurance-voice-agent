@@ -89,15 +89,19 @@ async def process_audio(
     try:
         session_id = f"web_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+        orig_filename = audio.filename or "recording.webm"
+        orig_content_type = audio.content_type or "audio/webm"
+        ext = os.path.splitext(orig_filename)[1] or ".webm"
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_audio:
             content = await audio.read()
             temp_audio.write(content)
             temp_path = temp_audio.name
         
-        print(f"[API] Processing audio for session: {session_id}")
+        print(f"[API] Processing audio for session: {session_id} (type={orig_content_type})")
         
         print("[API] Running STT...")
-        stt_result = stt_with_fallback(temp_path, session_id=session_id, api_key=sarvam_key)
+        stt_result = stt_with_fallback(temp_path, session_id=session_id, api_key=sarvam_key, content_type=orig_content_type)
         
         if stt_result['status'] != 'success':
             raise HTTPException(

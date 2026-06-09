@@ -33,6 +33,31 @@ let currentSessionId = null;
 let isInCall = false;
 let isProcessing = false;
 let sarvamApiKey = localStorage.getItem('SARVAM_API_KEY') || '';
+let audioMimeType = '';
+
+function getSupportedAudioMimeType() {
+    const types = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/wav',
+    ];
+    for (const t of types) {
+        if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return 'audio/webm';
+}
+
+async function fetchWithTimeout(url, options, timeoutMs = 30000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        return res;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -287,16 +312,17 @@ async function startAutoRecording() {
         // Start voice detection
         voiceDetector.start();
 
-        // Initialize MediaRecorder
+        // Initialize MediaRecorder with supported format
+        audioMimeType = getSupportedAudioMimeType();
         audioChunks = [];
-        mediaRecorder = new MediaRecorder(mediaStream);
+        mediaRecorder = new MediaRecorder(mediaStream, audioMimeType ? { mimeType: audioMimeType } : {});
 
         mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
+            if (event.data.size > 0) audioChunks.push(event.data);
         };
 
         mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioBlob = new Blob(audioChunks, { type: audioMimeType || 'audio/webm' });
             await processAudioQuery(audioBlob);
         };
 
@@ -337,22 +363,28 @@ async function processAudioQuery(audioBlob) {
 
     isProcessing = true;
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.wav');
+    const ext = audioMimeType.includes('webm') ? 'webm' : audioMimeType.includes('ogg') ? 'ogg' : 'wav';
+    formData.append('audio', audioBlob, `recording.${ext}`);
 
     try {
-        const response = await fetch(`${API_URL}/api/process-audio`, {
+        const response = await fetchWithTimeout(`${API_URL}/api/process-audio`, {
             method: 'POST',
             headers: getHeaders(),
             body: formData
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errText = await response.text().catch(() => '');
+            throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
         }
 
         const data = await response.json();
 
-        addMessage(data.user_text, 'user');
+        if (data.warning) {
+            updateStatus(`⚠️ ${data.warning}`, 'warning');
+        }
+
+        addMessage(data.user_text || '(could not transcribe)', 'user');
         addMessage(data.agent_response, 'agent', data.audio_url);
 
         totalQueries++;
@@ -360,12 +392,10 @@ async function processAudioQuery(audioBlob) {
 
         updateStatus('✅ Response received!', 'success');
 
-        // Play response audio
         if (data.audio_url) {
             await playAudioAndWait(`${API_URL}${data.audio_url}`);
         }
 
-        // After response, start listening again automatically
         isProcessing = false;
         if (isInCall) {
             await startAutoRecording();
@@ -373,10 +403,8 @@ async function processAudioQuery(audioBlob) {
 
     } catch (error) {
         console.error('Audio processing error:', error);
-        updateStatus('❌ Error processing audio. Please try again.', 'error');
+        updateStatus(`❌ ${error.message || 'Error processing audio'}`, 'error');
         isProcessing = false;
-
-        // Restart listening on error
         if (isInCall) {
             setTimeout(() => startAutoRecording(), 1000);
         }

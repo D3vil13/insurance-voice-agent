@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import requests
@@ -5,14 +6,16 @@ from config import SARVAM_API_KEY, SARVAM_STT_MODEL
 
 logger = logging.getLogger(__name__)
 
-def stt_sarvam(audio_path: str, session_id: str = None, api_key: str = None):
+def stt_sarvam(audio_path: str, session_id: str = None, api_key: str = None, content_type: str = "audio/wav"):
     start_time = time.time()
     key = api_key or SARVAM_API_KEY
     try:
         url = "https://api.sarvam.ai/speech-to-text"
         headers = {"api-subscription-key": key}
+        _, ext = os.path.splitext(audio_path)
+        filename = f"audio{ext or '.wav'}"
         with open(audio_path, "rb") as f:
-            files = {"file": ("audio.wav", f, "audio/wav")}
+            files = {"file": (filename, f, content_type)}
             data = {"model": SARVAM_STT_MODEL, "mode": "transcribe"}
             response = requests.post(url, headers=headers, files=files, data=data)
 
@@ -60,9 +63,9 @@ def stt_sarvam(audio_path: str, session_id: str = None, api_key: str = None):
             "error_message": str(e)
         }
 
-def stt_with_fallback(audio_path: str, session_id: str = None, api_key: str = None):
-    logger.info(f"[STT-START] Session: {session_id} | Audio: {audio_path}")
-    result = stt_sarvam(audio_path, session_id, api_key=api_key)
+def stt_with_fallback(audio_path: str, session_id: str = None, api_key: str = None, content_type: str = "audio/wav"):
+    logger.info(f"[STT-START] Session: {session_id} | Audio: {audio_path} | Type: {content_type}")
+    result = stt_sarvam(audio_path, session_id, api_key=api_key, content_type=content_type)
     if result["status"] == "success":
         return result
     return {
