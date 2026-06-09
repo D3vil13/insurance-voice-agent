@@ -311,6 +311,48 @@ async def start_call(x_api_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/debug/voice")
+async def debug_voice(x_api_key: Optional[str] = Header(None), api_key: Optional[str] = None):
+    sarvam_key = x_api_key or api_key or SARVAM_API_KEY
+    results = {"tts": None, "stt": None, "errors": []}
+
+    # Test TTS
+    try:
+        tts_result = tts_with_fallback("Hello, this is a test.", session_id="debug", segment_id="test", api_key=sarvam_key)
+        results["tts"] = {
+            "status": tts_result["status"],
+            "service": tts_result.get("service"),
+            "error": tts_result.get("error_message") if tts_result["status"] != "success" else None
+        }
+        if tts_result["status"] == "success" and os.path.exists(tts_result["output_path"]):
+            os.unlink(tts_result["output_path"])
+    except Exception as e:
+        results["tts"] = {"status": "failed", "error": str(e)}
+
+    # Test STT by generating a test tone file
+    try:
+        import wave, struct, math
+        test_wav = os.path.join(tempfile.gettempdir(), "debug_test.wav")
+        with wave.open(test_wav, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(16000)
+            for i in range(16000):
+                val = int(math.sin(2 * math.pi * 440 * i / 16000) * 8000)
+                wf.writeframes(struct.pack("<h", val))
+        stt_result = stt_with_fallback(test_wav, session_id="debug", api_key=sarvam_key)
+        results["stt"] = {
+            "status": stt_result["status"],
+            "service": stt_result.get("service"),
+            "error": stt_result.get("error_message") if stt_result["status"] != "success" else None
+        }
+        os.unlink(test_wav)
+    except Exception as e:
+        results["stt"] = {"status": "failed", "error": str(e)}
+
+    return results
+
+
 @app.post("/api/validate-key")
 async def validate_sarvam_key(x_api_key: Optional[str] = Header(None)):
     if not x_api_key:

@@ -17,7 +17,11 @@ def stt_sarvam(audio_path: str, session_id: str = None, api_key: str = None):
             response = requests.post(url, headers=headers, files=files, data=data)
 
         if response.status_code != 200:
-            err = response.json().get("error", {}).get("message", response.text)
+            try:
+                err = response.json().get("error", {}).get("message", response.text[:500])
+            except Exception:
+                err = response.text[:500]
+            logger.error(f"[STT-FAIL] Sarvam API returned {response.status_code}: {err}")
             return {
                 "status": "failed",
                 "service": "sarvam",

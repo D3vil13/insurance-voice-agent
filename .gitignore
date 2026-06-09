@@ -102,3 +102,5 @@ htmlcov/
 # Documentation Build
 # ====================================================================
 docs/_build/
+.vercel
+.env*
