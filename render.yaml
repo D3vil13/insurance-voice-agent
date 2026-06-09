@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: insurance-voice-agent
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: deepseek/deepseek-v4-flash
+      - key: AUDIO_OUTPUT_DIR
+        value: /tmp/api_audio_output
+      - key: PORT
+        value: 8000

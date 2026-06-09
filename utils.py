@@ -3,8 +3,6 @@ Utility Functions for Voice Agent
 Includes: Audio processing, RAG search, LLM generation
 """
 import numpy as np
-import sounddevice as sd
-import soundfile as sf
 import requests
 import json
 import chromadb
@@ -312,18 +310,17 @@ Answer:"""
 # ========== AUDIO FUNCTIONS ==========
 
 def detect_voice_activity(audio_data, threshold: float = VOICE_ACTIVITY_THRESHOLD):
-    """Simple voice activity detection based on energy"""
     rms = np.sqrt(np.mean(audio_data**2))
     return rms > threshold
 
 
 def record_with_silence_detection(max_duration: int = 10, silence_duration: float = 2.0, 
                                   sample_rate: int = SAMPLE_RATE):
-    """Record audio with automatic silence detection"""
+    import sounddevice as sd
     print(f"\n🎤 Listening... (speak now, will auto-stop after {silence_duration}s of silence)")
     
     recording = []
-    chunk_size = int(0.1 * sample_rate)  # 100ms chunks
+    chunk_size = int(0.1 * sample_rate)
     silent_chunks = 0
     max_chunks = int(max_duration / 0.1)
     
@@ -336,14 +333,12 @@ def record_with_silence_detection(max_duration: int = 10, silence_duration: floa
         chunk, _ = stream.read(chunk_size)
         recording.append(chunk)
         
-        # Check for voice activity
         if detect_voice_activity(chunk):
             started_speaking = True
             silent_chunks = 0
         elif started_speaking:
             silent_chunks += 1
             
-        # Stop if silence detected after speaking started
         if started_speaking and silent_chunks > (silence_duration / 0.1):
             print("✓ Silence detected, stopping recording")
             break
@@ -351,13 +346,13 @@ def record_with_silence_detection(max_duration: int = 10, silence_duration: floa
     stream.stop()
     stream.close()
     
-    # Concatenate all chunks
     audio_data = np.concatenate(recording, axis=0)
     return audio_data
 
 
 def play_audio(audio_file: str):
-    """Play audio through speaker"""
+    import sounddevice as sd
+    import soundfile as sf
     try:
         print("🔊 Playing response...")
         data, samplerate = sf.read(audio_file)

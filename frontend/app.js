@@ -1,5 +1,8 @@
 // Configuration
-const API_URL = 'http://localhost:8000';
+const API_URL = (() => {
+    const saved = localStorage.getItem('API_URL');
+    return saved || 'http://localhost:8000';
+})();
 
 // DOM Elements
 const chatContainer = document.getElementById('chatContainer');
@@ -15,6 +18,8 @@ const audioVisualizer = document.getElementById('audioVisualizer');
 const connectionStatus = document.getElementById('connectionStatus');
 const dbDocsCount = document.getElementById('dbDocsCount');
 const queriesCount = document.getElementById('queriesCount');
+const sarvamApiKeyInput = document.getElementById('sarvamApiKey');
+const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
 
 // State
 let mediaRecorder;
@@ -27,12 +32,24 @@ let mediaStream = null;
 let currentSessionId = null;
 let isInCall = false;
 let isProcessing = false;
+let sarvamApiKey = localStorage.getItem('SARVAM_API_KEY') || '';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    if (sarvamApiKeyInput && sarvamApiKey) {
+        sarvamApiKeyInput.value = sarvamApiKey;
+    }
     checkBackendConnection();
     setupEventListeners();
 });
+
+function getHeaders(extra = {}) {
+    const headers = { ...extra };
+    if (sarvamApiKey) {
+        headers['X-API-Key'] = sarvamApiKey;
+    }
+    return headers;
+}
 
 // Setup Event Listeners
 function setupEventListeners() {
@@ -52,12 +69,27 @@ function setupEventListeners() {
             sendTextQuery();
         });
     });
+
+    if (saveApiKeyBtn) {
+        saveApiKeyBtn.addEventListener('click', () => {
+            const key = sarvamApiKeyInput ? sarvamApiKeyInput.value.trim() : '';
+            sarvamApiKey = key;
+            localStorage.setItem('SARVAM_API_KEY', key);
+            saveApiKeyBtn.textContent = 'Saved!';
+            saveApiKeyBtn.classList.add('saved');
+            updateStatus('✅ API key saved (used for voice features)', 'success');
+            setTimeout(() => {
+                saveApiKeyBtn.textContent = 'Save Key';
+                saveApiKeyBtn.classList.remove('saved');
+            }, 2000);
+        });
+    }
 }
 
 // Check Backend Connection
 async function checkBackendConnection() {
     try {
-        const response = await fetch(`${API_URL}/health`);
+        const response = await fetch(`${API_URL}/health`, { headers: getHeaders() });
         const data = await response.json();
 
         if (data.status === 'healthy') {
@@ -123,7 +155,8 @@ async function startCall() {
 
         // Call backend to get greeting
         const response = await fetch(`${API_URL}/api/start-call`, {
-            method: 'POST'
+            method: 'POST',
+            headers: getHeaders()
         });
 
         if (!response.ok) {
@@ -279,6 +312,7 @@ async function processAudioQuery(audioBlob) {
     try {
         const response = await fetch(`${API_URL}/api/process-audio`, {
             method: 'POST',
+            headers: getHeaders(),
             body: formData
         });
 
@@ -367,7 +401,7 @@ async function sendTextQuery() {
     try {
         const response = await fetch(`${API_URL}/api/text-query`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ text })
         });
 

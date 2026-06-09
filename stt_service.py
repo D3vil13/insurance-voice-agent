@@ -1,125 +1,70 @@
-"""
-Speech-to-Text (STT) Service with Fallback
-Supports Faster-Whisper and Voxtral Mini
-"""
 import time
 import logging
-from faster_whisper import WhisperModel
+import requests
+from config import SARVAM_API_KEY, SARVAM_STT_MODEL
 
-# Configure logger
 logger = logging.getLogger(__name__)
 
-
-def stt_faster_whisper(audio_path: str, session_id: str = None):
-    """
-    Transcribe audio using Faster-Whisper model
-    
-    Args:
-        audio_path: Path to audio file
-        session_id: Session identifier for logging
-        
-    Returns:
-        dict: Result with status, service, transcription, latency, etc.
-    """
+def stt_sarvam(audio_path: str, session_id: str = None, api_key: str = None):
     start_time = time.time()
+    key = api_key or SARVAM_API_KEY
     try:
-        model = WhisperModel("base", device="cpu", compute_type="int8")
-        segments, info = model.transcribe(audio_path)
-        
-        transcription = ""
-        segment_count = 0
-        for segment in segments:
-            transcription += segment.text + " "
-            segment_count += 1
-        
+        url = "https://api.sarvam.ai/speech-to-text"
+        headers = {"api-subscription-key": key}
+        with open(audio_path, "rb") as f:
+            files = {"file": ("audio.wav", f, "audio/wav")}
+            data = {"model": SARVAM_STT_MODEL, "mode": "transcribe"}
+            response = requests.post(url, headers=headers, files=files, data=data)
+
+        if response.status_code != 200:
+            err = response.json().get("error", {}).get("message", response.text)
+            return {
+                "status": "failed",
+                "service": "sarvam",
+                "transcription": None,
+                "error_code": f"HTTP_{response.status_code}",
+                "error_message": err
+            }
+
+        result = response.json()
+        transcription = result.get("transcript", "").strip()
         elapsed = time.time() - start_time
-        
-        logger.info(f"[STT-SUCCESS] Faster-Whisper | Session: {session_id} | "
-                   f"Segments: {segment_count} | Latency: {elapsed:.2f}s | "
-                   f"Length: {len(transcription)} chars")
-        
+
+        logger.info(f"[STT-SUCCESS] Sarvam AI | Session: {session_id} | "
+                    f"Latency: {elapsed:.2f}s | Length: {len(transcription)} chars")
+
         return {
-            'status': 'success',
-            'service': 'faster_whisper',
-            'transcription': transcription.strip(),
-            'latency': elapsed,
-            'segment_count': segment_count,
-            'error_code': None
+            "status": "success",
+            "service": "sarvam",
+            "transcription": transcription,
+            "latency": elapsed,
+            "segment_count": 1,
+            "error_code": None
         }
-        
+
     except Exception as e:
         elapsed = time.time() - start_time
         error_code = type(e).__name__
-        
-        logger.error(f"[STT-FAIL] Faster-Whisper | Session: {session_id} | "
-                    f"Error: {error_code} - {str(e)} | Latency: {elapsed:.2f}s")
-        
+        logger.error(f"[STT-FAIL] Sarvam AI | Session: {session_id} | "
+                     f"Error: {error_code} - {str(e)}")
         return {
-            'status': 'failed',
-            'service': 'faster_whisper',
-            'transcription': None,
-            'latency': elapsed,
-            'error_code': error_code,
-            'error_message': str(e)
+            "status": "failed",
+            "service": "sarvam",
+            "transcription": None,
+            "latency": elapsed,
+            "error_code": error_code,
+            "error_message": str(e)
         }
 
-
-def stt_voxtral_mini(audio_path: str, session_id: str = None):
-    """
-    Placeholder for Voxtral Mini STT fallback
-    
-    Args:
-        audio_path: Path to audio file
-        session_id: Session identifier for logging
-        
-    Returns:
-        dict: Result with status, service, transcription, latency, etc.
-    """
-    start_time = time.time()
-    logger.warning(f"[STT-FALLBACK] Voxtral Mini not implemented | Session: {session_id}")
-    elapsed = time.time() - start_time
-    
-    return {
-        'status': 'failed',
-        'service': 'voxtral_mini',
-        'transcription': None,
-        'latency': elapsed,
-        'error_code': 'NOT_IMPLEMENTED'
-    }
-
-
-def stt_with_fallback(audio_path: str, session_id: str = None):
-    """
-    STT with automatic fallback from Faster-Whisper to Voxtral Mini
-    
-    Args:
-        audio_path: Path to audio file
-        session_id: Session identifier for logging
-        
-    Returns:
-        dict: Result with status, service, transcription, latency, etc.
-    """
+def stt_with_fallback(audio_path: str, session_id: str = None, api_key: str = None):
     logger.info(f"[STT-START] Session: {session_id} | Audio: {audio_path}")
-    
-    # Try primary (Faster-Whisper)
-    result = stt_faster_whisper(audio_path, session_id)
-    
-    if result['status'] == 'success':
+    result = stt_sarvam(audio_path, session_id, api_key=api_key)
+    if result["status"] == "success":
         return result
-    
-    # Fallback to Voxtral Mini
-    logger.warning(f"[STT-FALLBACK] Switching to Voxtral Mini | Session: {session_id}")
-    result = stt_voxtral_mini(audio_path, session_id)
-    
-    if result['status'] == 'success':
-        result['fallback_triggered'] = True
-        return result
-    
-    # Both failed
-    logger.critical(f"[STT-CRITICAL] All services failed | Session: {session_id}")
     return {
-        'status': 'failed',
-        'service': 'all',
-        'transcription': None,
-        'error_code': 'ALL_STT_FAILED'
+        "status": "failed",
+        "service": "all",
+        "transcription": None,
+        "error_code": "ALL_STT_FAILED",
+        "error_message": result.get("error_message", "Sarvam STT failed")
     }

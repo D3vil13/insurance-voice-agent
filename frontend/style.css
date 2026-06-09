@@ -580,3 +580,17 @@ body {
 .hidden {
     display: none !important;
 }
+
+.api-key-input-group input:focus {
+    outline: none;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+#saveApiKeyBtn:hover {
+    opacity: 0.9;
+}
+
+#saveApiKeyBtn.saved {
+    background: var(--success-color) !important;
+}

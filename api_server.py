@@ -4,28 +4,26 @@
 FastAPI Backend for Insurance Voice Agent
 Provides REST API endpoints for web frontend
 """
-import sys
-import io
 import os
 import tempfile
+import shutil
 from datetime import datetime
 from typing import Optional
 
-# Set UTF-8 encoding for Windows console
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-# Import existing modules
 from utils import semantic_search, generate_answer_with_llm
 from stt_service import stt_with_fallback
 from tts_service import tts_with_fallback
+from config import SARVAM_API_KEY
+
+# Use /tmp for ephemeral storage on production (Render/Vercel)
+AUDIO_OUTPUT_DIR = os.environ.get("AUDIO_OUTPUT_DIR", "api_audio_output")
+os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -37,7 +35,7 @@ app = FastAPI(
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your Vercel domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,9 +50,6 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: str
     database_docs: int
-
-# Create audio output directory
-os.makedirs('api_audio_output', exist_ok=True)
 
 
 @app.get("/", response_model=HealthResponse)
@@ -83,24 +78,17 @@ async def root():
 
 
 @app.post("/api/process-audio")
-async def process_audio(audio: UploadFile = File(...)):
-    """
-    Process audio file: STT → RAG → LLM → TTS
-    
-    Args:
-        audio: Audio file from frontend (WAV format recommended)
-    
-    Returns:
-        JSON with user_text, agent_response, and audio_url
-    """
+async def process_audio(
+    audio: UploadFile = File(...),
+    x_api_key: Optional[str] = Header(None)
+):
     temp_path = None
     output_path = None
+    sarvam_key = x_api_key or SARVAM_API_KEY
     
     try:
-        # Generate session ID
         session_id = f"web_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        # Save uploaded audio to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             content = await audio.read()
             temp_audio.write(content)
@@ -108,9 +96,8 @@ async def process_audio(audio: UploadFile = File(...)):
         
         print(f"[API] Processing audio for session: {session_id}")
         
-        # Step 1: Speech-to-Text
         print("[API] Running STT...")
-        stt_result = stt_with_fallback(temp_path, session_id=session_id)
+        stt_result = stt_with_fallback(temp_path, session_id=session_id, api_key=sarvam_key)
         
         if stt_result['status'] != 'success':
             raise HTTPException(
@@ -121,12 +108,10 @@ async def process_audio(audio: UploadFile = File(...)):
         user_text = stt_result['transcription']
         print(f"[API] User said: {user_text}")
         
-        # Step 2: RAG Search
         print("[API] Searching knowledge base...")
         hits = semantic_search(user_text)
         retrieved_docs = [hit["doc"] for hit in hits]
         
-        # Step 3: LLM Response Generation
         print("[API] Generating response...")
         if retrieved_docs:
             agent_response = generate_answer_with_llm(user_text, retrieved_docs)
@@ -135,16 +120,15 @@ async def process_audio(audio: UploadFile = File(...)):
         
         print(f"[API] Agent response: {agent_response}")
         
-        # Step 4: Text-to-Speech
         print("[API] Converting to speech...")
         tts_result = tts_with_fallback(
             agent_response, 
             session_id=session_id, 
-            segment_id="response"
+            segment_id="response",
+            api_key=sarvam_key
         )
         
         if tts_result['status'] != 'success':
-            # Return text response even if TTS fails
             return JSONResponse({
                 "user_text": user_text,
                 "agent_response": agent_response,
@@ -154,11 +138,9 @@ async def process_audio(audio: UploadFile = File(...)):
         
         output_path = tts_result['output_path']
         
-        # Copy audio to API output directory for serving
         api_audio_filename = f"{session_id}_response.wav"
-        api_audio_path = os.path.join('api_audio_output', api_audio_filename)
+        api_audio_path = os.path.join(AUDIO_OUTPUT_DIR, api_audio_filename)
         
-        import shutil
         shutil.copy2(output_path, api_audio_path)
         
         print(f"[API] Success! Audio saved to: {api_audio_path}")
@@ -179,7 +161,6 @@ async def process_audio(audio: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
-        # Clean up temp file
         if temp_path and os.path.exists(temp_path):
             try:
                 os.unlink(temp_path)
@@ -239,20 +220,9 @@ async def text_query(query: TextQuery):
 
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
-    """
-    Serve audio files
-    
-    Args:
-        filename: Audio file name
-    
-    Returns:
-        Audio file
-    """
-    file_path = os.path.join('api_audio_output', filename)
-    
+    file_path = os.path.join(AUDIO_OUTPUT_DIR, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Audio file not found")
-    
     return FileResponse(
         file_path, 
         media_type="audio/wav",
@@ -262,18 +232,13 @@ async def get_audio(filename: str):
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check"""
     try:
         import chromadb
-        from config import CHROMA_DB_PATH, OPENROUTER_API_KEY
+        from config import CHROMA_DB_PATH, OPENROUTER_API_KEY, SARVAM_API_KEY
         
-        # Check database
         client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
         collection = client.get_or_create_collection(name="insurance_docs")
         doc_count = collection.count()
-        
-        # Check API key
-        api_key_status = "configured" if OPENROUTER_API_KEY else "missing"
         
         return {
             "status": "healthy",
@@ -284,13 +249,14 @@ async def health_check():
                     "path": CHROMA_DB_PATH,
                     "documents": doc_count
                 },
-                "api_key": {
-                    "status": api_key_status
+                "api_keys": {
+                    "openrouter": "configured" if OPENROUTER_API_KEY else "missing",
+                    "sarvam": "configured" if SARVAM_API_KEY else "missing"
                 },
                 "services": {
-                    "stt": "available",
-                    "tts": "available",
-                    "llm": "available"
+                    "stt": "sarvam_ai",
+                    "tts": "sarvam_ai",
+                    "llm": "openrouter"
                 }
             }
         }
@@ -303,31 +269,22 @@ async def health_check():
 
 
 @app.post("/api/start-call")
-async def start_call():
-    """
-    Initialize a new call session with greeting
-    
-    Returns:
-        JSON with session_id, greeting_text, and greeting_audio_url
-    """
+async def start_call(x_api_key: Optional[str] = Header(None)):
+    sarvam_key = x_api_key or SARVAM_API_KEY
     try:
-        # Generate session ID
         session_id = f"web_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
-        # Greeting message (same as in nodes.py)
         greeting = "Hi, this is PolicyPal AI from ICICI Lombard Insurance. How can I help you today?"
         
         print(f"[API] Starting new call session: {session_id}")
         
-        # Generate greeting audio
         tts_result = tts_with_fallback(
             greeting,
             session_id=session_id,
-            segment_id="greeting"
+            segment_id="greeting",
+            api_key=sarvam_key
         )
         
         if tts_result['status'] != 'success':
-            # Return text-only greeting if TTS fails
             return JSONResponse({
                 "session_id": session_id,
                 "greeting_text": greeting,
@@ -335,11 +292,8 @@ async def start_call():
                 "warning": "TTS failed, text-only greeting"
             })
         
-        # Copy audio to API output directory
         greeting_filename = f"{session_id}_greeting.wav"
-        greeting_path = os.path.join('api_audio_output', greeting_filename)
-        
-        import shutil
+        greeting_path = os.path.join(AUDIO_OUTPUT_DIR, greeting_filename)
         shutil.copy2(tts_result['output_path'], greeting_path)
         
         print(f"[API] Call started successfully: {session_id}")
