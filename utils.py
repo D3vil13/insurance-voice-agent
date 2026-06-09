@@ -2,11 +2,14 @@
 Utility Functions for Voice Agent
 Includes: Audio processing, RAG search, LLM generation
 """
+import logging
 import numpy as np
 import requests
 import json
 import chromadb
 from langchain_community.embeddings import HuggingFaceEmbeddings
+
+logger = logging.getLogger(__name__)
 
 from config import (
     CHROMA_DB_PATH,
@@ -284,7 +287,7 @@ Answer:"""
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost:8888",
+                "HTTP-Referer": "https://insurance-voice-agent-0o7q.onrender.com",
                 "X-Title": "Insurance Assistant",
             },
             data=json.dumps({
@@ -298,13 +301,21 @@ Answer:"""
                 "top_p": LLM_TOP_P
             })
         )
-        
+
+        if response.status_code != 200:
+            logger.error(f"LLM API error {response.status_code}: {response.text[:500]}")
+            return f"I apologize, I'm having trouble generating a response. (LLM API: {response.status_code})"
+
         response_data = response.json()
+        if "error" in response_data:
+            logger.error(f"LLM API error in response: {response_data['error']}")
+            return "I apologize, I'm having trouble generating a response. Please try again."
+
         answer_text = response_data['choices'][0]['message']['content'].strip()
         return answer_text
     except Exception as e:
-        print(f"❌ LLM generation error: {e}")
-        return "I apologize, I'm having trouble generating a response. Please try again."
+        logger.error(f"LLM generation error: {e}", exc_info=True)
+        return f"I apologize, I'm having trouble generating a response. (Error: {type(e).__name__})"
 
 
 # ========== AUDIO FUNCTIONS ==========

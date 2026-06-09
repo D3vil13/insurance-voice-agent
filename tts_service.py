@@ -25,7 +25,11 @@ def tts_sarvam(text: str, output_path: str = "output.wav", session_id: str = Non
         response = requests.post(url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            err = response.json().get("error", {}).get("message", response.text)
+            try:
+                err = response.json().get("error", {}).get("message", response.text[:500])
+            except Exception:
+                err = response.text[:500]
+            logger.error(f"[TTS-FAIL] Sarvam API returned {response.status_code}: {err}")
             return {
                 "status": "failed",
                 "service": "sarvam",

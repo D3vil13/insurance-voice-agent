@@ -311,6 +311,29 @@ async def start_call(x_api_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/validate-key")
+async def validate_sarvam_key(x_api_key: Optional[str] = Header(None)):
+    if not x_api_key:
+        return JSONResponse({"valid": False, "error": "No API key provided"}, status_code=400)
+    try:
+        import requests as http
+        resp = http.post(
+            "https://api.sarvam.ai/text-to-speech",
+            headers={"api-subscription-key": x_api_key, "Content-Type": "application/json"},
+            json={"text": "Hi", "model": "bulbul:v3", "target_language_code": "en-IN", "speaker": "shubh"},
+            timeout=10
+        )
+        if resp.status_code == 200:
+            return {"valid": True}
+        try:
+            msg = resp.json().get("error", {}).get("message", resp.text[:200])
+        except Exception:
+            msg = resp.text[:200]
+        return JSONResponse({"valid": False, "error": msg, "code": resp.status_code})
+    except Exception as e:
+        return JSONResponse({"valid": False, "error": str(e)})
+
+
 if __name__ == "__main__":
     print("="*70)
     print("INSURANCE VOICE AGENT API SERVER")

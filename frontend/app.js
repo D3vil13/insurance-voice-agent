@@ -71,13 +71,43 @@ function setupEventListeners() {
     });
 
     if (saveApiKeyBtn) {
-        saveApiKeyBtn.addEventListener('click', () => {
+        saveApiKeyBtn.addEventListener('click', async () => {
             const key = sarvamApiKeyInput ? sarvamApiKeyInput.value.trim() : '';
-            sarvamApiKey = key;
-            localStorage.setItem('SARVAM_API_KEY', key);
-            saveApiKeyBtn.textContent = 'Saved!';
-            saveApiKeyBtn.classList.add('saved');
-            updateStatus('✅ API key saved (used for voice features)', 'success');
+            if (!key) {
+                sarvamApiKey = '';
+                localStorage.removeItem('SARVAM_API_KEY');
+                saveApiKeyBtn.textContent = 'Cleared';
+                saveApiKeyBtn.classList.add('saved');
+                updateStatus('🗑️ API key cleared', 'info');
+                setTimeout(() => {
+                    saveApiKeyBtn.textContent = 'Save Key';
+                    saveApiKeyBtn.classList.remove('saved');
+                }, 2000);
+                return;
+            }
+            saveApiKeyBtn.textContent = 'Validating...';
+            saveApiKeyBtn.disabled = true;
+            try {
+                const resp = await fetch(`${API_URL}/api/validate-key`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': key }
+                });
+                const data = await resp.json();
+                if (data.valid) {
+                    sarvamApiKey = key;
+                    localStorage.setItem('SARVAM_API_KEY', key);
+                    saveApiKeyBtn.textContent = 'Saved!';
+                    saveApiKeyBtn.classList.add('saved');
+                    updateStatus('✅ Valid API key saved', 'success');
+                } else {
+                    updateStatus(`❌ Invalid key: ${data.error || 'API rejected the key'}`, 'error');
+                    saveApiKeyBtn.textContent = 'Save Key';
+                }
+            } catch (e) {
+                updateStatus('❌ Could not validate key (backend unreachable?)', 'error');
+                saveApiKeyBtn.textContent = 'Save Key';
+            }
+            saveApiKeyBtn.disabled = false;
             setTimeout(() => {
                 saveApiKeyBtn.textContent = 'Save Key';
                 saveApiKeyBtn.classList.remove('saved');
