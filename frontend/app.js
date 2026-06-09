@@ -1,7 +1,7 @@
 // Configuration
 const API_URL = (() => {
     const saved = localStorage.getItem('API_URL');
-    return saved || 'http://localhost:8000';
+    return saved || 'https://insurance-voice-agent-0o7q.onrender.com';
 })();
 
 // DOM Elements
