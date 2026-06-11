@@ -90,7 +90,7 @@ async def process_audio(
         session_id = f"web_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         orig_filename = audio.filename or "recording.webm"
-        orig_content_type = audio.content_type or "audio/webm"
+        orig_content_type = (audio.content_type or "audio/webm").split(';')[0].strip()
         ext = os.path.splitext(orig_filename)[1] or ".webm"
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_audio:

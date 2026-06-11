@@ -1,25 +1,25 @@
-// Configuration
 const API_URL = (() => {
     const saved = localStorage.getItem('API_URL');
-    return saved || 'https://insurance-voice-agent-0o7q.onrender.com';
+    return saved || 'http://localhost:8000';
 })();
 
-// DOM Elements
+// DOM
 const chatContainer = document.getElementById('chatContainer');
-const recordBtn = document.getElementById('recordBtn');
 const textInput = document.getElementById('textInput');
 const sendBtn = document.getElementById('sendBtn');
-const statusMessage = document.getElementById('statusMessage');
-const voiceMode = document.getElementById('voiceMode');
-const textMode = document.getElementById('textMode');
-const voiceInputContainer = document.getElementById('voiceInputContainer');
-const textInputContainer = document.getElementById('textInputContainer');
-const audioVisualizer = document.getElementById('audioVisualizer');
+const statusMsg = document.getElementById('statusMessage');
+const callBtn = document.getElementById('callBtn');
+const voiceStatus = document.getElementById('voiceStatus');
+const visualizerWrap = document.getElementById('visualizerWrap');
+const voiceInputWrap = document.getElementById('voiceInputWrap');
+const textInputWrap = document.getElementById('textInputWrap');
+const modeTabs = document.getElementById('modeTabs');
 const connectionStatus = document.getElementById('connectionStatus');
 const dbDocsCount = document.getElementById('dbDocsCount');
 const queriesCount = document.getElementById('queriesCount');
-const sarvamApiKeyInput = document.getElementById('sarvamApiKey');
+const sarvamInput = document.getElementById('sarvamApiKey');
 const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+const toast = document.getElementById('toast');
 
 // State
 let mediaRecorder;
@@ -34,6 +34,7 @@ let isInCall = false;
 let isProcessing = false;
 let sarvamApiKey = localStorage.getItem('SARVAM_API_KEY') || '';
 let audioMimeType = '';
+let toastTimer = null;
 
 function getSupportedAudioMimeType() {
     const types = [
@@ -59,10 +60,9 @@ async function fetchWithTimeout(url, options, timeoutMs = 30000) {
     }
 }
 
-// Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    if (sarvamApiKeyInput && sarvamApiKey) {
-        sarvamApiKeyInput.value = sarvamApiKey;
+    if (sarvamInput && sarvamApiKey) {
+        sarvamInput.value = sarvamApiKey;
     }
     checkBackendConnection();
     setupEventListeners();
@@ -76,14 +76,32 @@ function getHeaders(extra = {}) {
     return headers;
 }
 
-// Setup Event Listeners
+function showToast(msg, type = '') {
+    toast.textContent = msg;
+    toast.className = 'toast' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
 function setupEventListeners() {
-    voiceMode.addEventListener('click', () => switchMode('voice'));
-    textMode.addEventListener('click', () => switchMode('text'));
-    recordBtn.addEventListener('click', handleCallButton);
+    // Mode tabs
+    modeTabs.addEventListener('click', (e) => {
+        const tab = e.target.closest('.mode-tab');
+        if (!tab) return;
+        const mode = tab.dataset.mode;
+        switchMode(mode);
+    });
+
+    callBtn.addEventListener('click', handleCallButton);
     sendBtn.addEventListener('click', sendTextQuery);
-    textInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendTextQuery();
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendTextQuery();
+        }
     });
 
     document.querySelectorAll('.quick-btn').forEach(btn => {
@@ -96,102 +114,92 @@ function setupEventListeners() {
     });
 
     if (saveApiKeyBtn) {
-        saveApiKeyBtn.addEventListener('click', async () => {
-            const key = sarvamApiKeyInput ? sarvamApiKeyInput.value.trim() : '';
-            if (!key) {
-                sarvamApiKey = '';
-                localStorage.removeItem('SARVAM_API_KEY');
-                saveApiKeyBtn.textContent = 'Cleared';
-                saveApiKeyBtn.classList.add('saved');
-                updateStatus('🗑️ API key cleared', 'info');
-                setTimeout(() => {
-                    saveApiKeyBtn.textContent = 'Save Key';
-                    saveApiKeyBtn.classList.remove('saved');
-                }, 2000);
-                return;
-            }
-            saveApiKeyBtn.textContent = 'Validating...';
-            saveApiKeyBtn.disabled = true;
-            try {
-                const resp = await fetch(`${API_URL}/api/validate-key`, {
-                    method: 'POST',
-                    headers: { 'X-API-Key': key }
-                });
-                const data = await resp.json();
-                if (data.valid) {
-                    sarvamApiKey = key;
-                    localStorage.setItem('SARVAM_API_KEY', key);
-                    saveApiKeyBtn.textContent = 'Saved!';
-                    saveApiKeyBtn.classList.add('saved');
-                    updateStatus('✅ Valid API key saved', 'success');
-                } else {
-                    updateStatus(`❌ Invalid key: ${data.error || 'API rejected the key'}`, 'error');
-                    saveApiKeyBtn.textContent = 'Save Key';
-                }
-            } catch (e) {
-                updateStatus('❌ Could not validate key (backend unreachable?)', 'error');
-                saveApiKeyBtn.textContent = 'Save Key';
-            }
-            saveApiKeyBtn.disabled = false;
-            setTimeout(() => {
-                saveApiKeyBtn.textContent = 'Save Key';
-                saveApiKeyBtn.classList.remove('saved');
-            }, 2000);
-        });
+        saveApiKeyBtn.addEventListener('click', handleApiKeySave);
     }
 }
 
-// Check Backend Connection
+async function handleApiKeySave() {
+    const key = sarvamInput ? sarvamInput.value.trim() : '';
+    if (!key) {
+        sarvamApiKey = '';
+        localStorage.removeItem('SARVAM_API_KEY');
+        saveApiKeyBtn.textContent = 'Cleared';
+        saveApiKeyBtn.classList.add('saved');
+        showToast('API key cleared', 'success');
+        setTimeout(() => {
+            saveApiKeyBtn.textContent = 'Save Key';
+            saveApiKeyBtn.classList.remove('saved');
+        }, 2000);
+        return;
+    }
+    saveApiKeyBtn.textContent = 'Validating...';
+    saveApiKeyBtn.disabled = true;
+    try {
+        const resp = await fetch(`${API_URL}/api/validate-key`, {
+            method: 'POST',
+            headers: { 'X-API-Key': key }
+        });
+        const data = await resp.json();
+        if (data.valid) {
+            sarvamApiKey = key;
+            localStorage.setItem('SARVAM_API_KEY', key);
+            saveApiKeyBtn.textContent = 'Saved!';
+            saveApiKeyBtn.classList.add('saved');
+            showToast('Valid API key saved', 'success');
+        } else {
+            showToast(`Invalid key: ${data.error || 'rejected'}`, 'error');
+            saveApiKeyBtn.textContent = 'Save Key';
+        }
+    } catch (e) {
+        showToast('Could not validate key (backend unreachable?)', 'error');
+        saveApiKeyBtn.textContent = 'Save Key';
+    }
+    saveApiKeyBtn.disabled = false;
+    setTimeout(() => {
+        saveApiKeyBtn.textContent = 'Save Key';
+        saveApiKeyBtn.classList.remove('saved');
+    }, 2000);
+}
+
 async function checkBackendConnection() {
     try {
         const response = await fetch(`${API_URL}/health`, { headers: getHeaders() });
         const data = await response.json();
-
         if (data.status === 'healthy') {
             updateConnectionStatus(true);
-            dbDocsCount.textContent = data.components.database.documents;
+            if (dbDocsCount) dbDocsCount.textContent = data.components.database.documents;
         } else {
             updateConnectionStatus(false);
         }
     } catch (error) {
         console.error('Backend connection failed:', error);
         updateConnectionStatus(false);
-        updateStatus('⚠️ Cannot connect to backend. Please check if the server is running.', 'warning');
     }
 }
 
-// Update Connection Status
 function updateConnectionStatus(connected) {
     const dot = connectionStatus.querySelector('.status-dot');
     const text = connectionStatus.querySelector('.status-text');
-
     if (connected) {
-        dot.classList.add('connected');
+        dot.className = 'status-dot connected';
         text.textContent = 'Connected';
+        showToast('Connected to server', 'success');
     } else {
-        dot.classList.remove('connected');
+        dot.className = 'status-dot disconnected';
         text.textContent = 'Disconnected';
+        showToast('Cannot connect to backend', 'error');
     }
 }
 
-// Switch Mode
 function switchMode(mode) {
     currentMode = mode;
-
-    if (mode === 'voice') {
-        voiceMode.classList.add('active');
-        textMode.classList.remove('active');
-        voiceInputContainer.classList.remove('hidden');
-        textInputContainer.classList.add('hidden');
-    } else {
-        textMode.classList.add('active');
-        voiceMode.classList.remove('active');
-        textInputContainer.classList.remove('hidden');
-        voiceInputContainer.classList.add('hidden');
-    }
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.mode === mode);
+    });
+    voiceInputWrap.classList.toggle('hidden', mode !== 'voice');
+    textInputWrap.classList.toggle('hidden', mode !== 'text');
 }
 
-// Handle Call Button (Start/End Call)
 async function handleCallButton() {
     if (isInCall) {
         endCall();
@@ -200,15 +208,12 @@ async function handleCallButton() {
     }
 }
 
-// Start Call
 async function startCall() {
     try {
-        updateStatus('📞 Starting call...', 'info');
-
-        // Request microphone access
+        setVoiceStatus('Requesting microphone...', '');
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // Call backend to get greeting
+        setVoiceStatus('Starting call...', '');
         const response = await fetch(`${API_URL}/api/start-call`, {
             method: 'POST',
             headers: getHeaders()
@@ -220,28 +225,22 @@ async function startCall() {
 
         const data = await response.json();
         currentSessionId = data.session_id;
-
-        // Display greeting in chat
         addMessage(data.greeting_text, 'agent', data.greeting_audio_url);
 
-        // Play greeting audio
         if (data.greeting_audio_url) {
-            updateStatus('🔊 Playing greeting...', 'info');
+            setVoiceStatus('Playing greeting...', '');
             await playAudioAndWait(`${API_URL}${data.greeting_audio_url}`);
         }
 
-        // Update UI to "In Call" state
         isInCall = true;
-        recordBtn.classList.add('in-call');
-        recordBtn.querySelector('.record-icon').textContent = '📴';
-        recordBtn.querySelector('.record-text').textContent = 'End Call';
+        callBtn.classList.add('in-call');
+        callBtn.textContent = '📴';
 
-        // Start listening automatically after greeting
         await startAutoRecording();
 
     } catch (error) {
         console.error('Error starting call:', error);
-        updateStatus('❌ Failed to start call. Please check microphone permissions.', 'error');
+        setVoiceStatus('Failed to start call. Check mic permissions.', 'error');
         if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
@@ -249,70 +248,49 @@ async function startCall() {
     }
 }
 
-// End Call
 function endCall() {
-    // Stop recording if active
-    if (isRecording) {
-        stopAutoRecording();
-    }
-
-    // Stop voice detector
+    if (isRecording) stopAutoRecording();
     if (voiceDetector) {
         voiceDetector.destroy();
         voiceDetector = null;
     }
-
-    // Stop media stream
     if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
         mediaStream = null;
     }
-
-    // Update UI
     isInCall = false;
     isProcessing = false;
-    recordBtn.classList.remove('in-call');
-    recordBtn.querySelector('.record-icon').textContent = '📞';
-    recordBtn.querySelector('.record-text').textContent = 'Start Call';
-    audioVisualizer.classList.remove('active');
-
-    updateStatus('📴 Call ended', 'info');
-
-    // Add farewell message
+    callBtn.classList.remove('in-call');
+    callBtn.textContent = '📞';
+    visualizerWrap.classList.remove('active');
+    setVoiceStatus('Call ended', '');
     addMessage('Thank you for calling ICICI Lombard Insurance. Have a great day!', 'agent');
 }
 
-// Start Auto Recording with Voice Detection
 async function startAutoRecording() {
     if (!mediaStream || isProcessing) return;
-
     try {
-        // Initialize voice detector
         voiceDetector = new VoiceActivityDetector(mediaStream, {
             silenceThreshold: 0.02,
-            silenceDuration: 2000, // 2 seconds of silence
+            silenceDuration: 2000,
             checkInterval: 100
         });
 
-        // Set up voice detector callbacks
         voiceDetector.onvoicestart = () => {
-            console.log('Voice detected - started speaking');
+            console.log('Voice started');
         };
 
         voiceDetector.onsilence = () => {
-            console.log('Silence detected - stopping recording');
+            console.log('Silence detected');
             stopAutoRecording();
         };
 
         voiceDetector.onactivity = (level) => {
-            // Update visualizer based on voice activity
             updateVisualizer(level);
         };
 
-        // Start voice detection
         voiceDetector.start();
 
-        // Initialize MediaRecorder with supported format
         audioMimeType = getSupportedAudioMimeType();
         audioChunks = [];
         mediaRecorder = new MediaRecorder(mediaStream, audioMimeType ? { mimeType: audioMimeType } : {});
@@ -326,42 +304,34 @@ async function startAutoRecording() {
             await processAudioQuery(audioBlob);
         };
 
-        // Start recording
         mediaRecorder.start();
         isRecording = true;
-
-        audioVisualizer.classList.add('active');
-        updateStatus('🎤 Listening... (speak now, will auto-stop after 2s of silence)', 'info');
+        visualizerWrap.classList.add('active');
+        setVoiceStatus('Listening...', 'listening');
 
     } catch (error) {
-        console.error('Error starting auto recording:', error);
-        updateStatus('❌ Error starting recording', 'error');
+        console.error('Error starting recording:', error);
+        setVoiceStatus('Error starting recording', 'error');
     }
 }
 
-// Stop Auto Recording
 function stopAutoRecording() {
     if (!isRecording) return;
-
     isRecording = false;
-
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
     }
-
     if (voiceDetector) {
         voiceDetector.stop();
     }
-
-    audioVisualizer.classList.remove('active');
-    updateStatus('⏳ Processing your audio...', 'info');
+    visualizerWrap.classList.remove('active');
+    setVoiceStatus('Processing...', 'processing');
 }
 
-// Process Audio Query
 async function processAudioQuery(audioBlob) {
     if (!isInCall || isProcessing) return;
-
     isProcessing = true;
+
     const formData = new FormData();
     const ext = audioMimeType.includes('webm') ? 'webm' : audioMimeType.includes('ogg') ? 'ogg' : 'wav';
     formData.append('audio', audioBlob, `recording.${ext}`);
@@ -381,18 +351,17 @@ async function processAudioQuery(audioBlob) {
         const data = await response.json();
 
         if (data.warning) {
-            updateStatus(`⚠️ ${data.warning}`, 'warning');
+            showToast(data.warning, 'error');
         }
 
         addMessage(data.user_text || '(could not transcribe)', 'user');
         addMessage(data.agent_response, 'agent', data.audio_url);
 
         totalQueries++;
-        queriesCount.textContent = totalQueries;
-
-        updateStatus('✅ Response received!', 'success');
+        if (queriesCount) queriesCount.textContent = totalQueries;
 
         if (data.audio_url) {
+            setVoiceStatus('Playing response...', '');
             await playAudioAndWait(`${API_URL}${data.audio_url}`);
         }
 
@@ -403,58 +372,49 @@ async function processAudioQuery(audioBlob) {
 
     } catch (error) {
         console.error('Audio processing error:', error);
-        updateStatus(`❌ ${error.message || 'Error processing audio'}`, 'error');
+        setVoiceStatus(`Error: ${error.message.slice(0, 60)}`, 'error');
+        showToast(error.message.slice(0, 80), 'error');
         isProcessing = false;
         if (isInCall) {
-            setTimeout(() => startAutoRecording(), 1000);
+            setTimeout(() => startAutoRecording(), 1500);
         }
     }
 }
 
-// Play Audio and Wait for Completion
 function playAudioAndWait(audioUrl) {
     return new Promise((resolve, reject) => {
         const audio = new Audio(audioUrl);
-
-        audio.onended = () => {
-            resolve();
-        };
-
+        audio.onended = () => resolve();
         audio.onerror = (error) => {
             console.error('Audio playback error:', error);
             reject(error);
         };
-
-        audio.play().catch(error => {
-            console.error('Audio play error:', error);
-            reject(error);
-        });
+        audio.play().catch(reject);
     });
 }
 
-// Update Visualizer
 function updateVisualizer(level) {
-    const bars = audioVisualizer.querySelectorAll('.visualizer-bar');
-    const intensity = Math.min(level * 50, 1); // Scale the level
-
+    const bars = visualizerWrap.querySelectorAll('.viz-bar');
+    const intensity = Math.min(level * 50, 1);
     bars.forEach((bar, index) => {
         const height = Math.random() * intensity * 100;
-        bar.style.height = `${Math.max(height, 10)}%`;
+        bar.style.height = `${Math.max(height, 8)}%`;
     });
 }
 
-// Send Text Query
+function setVoiceStatus(msg, type) {
+    voiceStatus.textContent = msg;
+    voiceStatus.className = 'voice-status';
+    if (type) voiceStatus.classList.add(type);
+}
+
 async function sendTextQuery() {
     const text = textInput.value.trim();
-
-    if (!text) {
-        updateStatus('⚠️ Please enter a question', 'warning');
-        return;
-    }
+    if (!text) return;
 
     textInput.value = '';
     addMessage(text, 'user');
-    updateStatus('⏳ Thinking...', 'info');
+    statusMsg.textContent = 'Thinking...';
 
     try {
         const response = await fetch(`${API_URL}/api/text-query`, {
@@ -468,66 +428,54 @@ async function sendTextQuery() {
         }
 
         const data = await response.json();
-
         addMessage(data.agent_response, 'agent');
 
         totalQueries++;
-        queriesCount.textContent = totalQueries;
+        if (queriesCount) queriesCount.textContent = totalQueries;
 
-        updateStatus('✅ Response received!', 'success');
+        statusMsg.textContent = '';
 
     } catch (error) {
         console.error('Text query error:', error);
-        updateStatus('❌ Error processing query. Please try again.', 'error');
+        statusMsg.textContent = 'Error processing query';
+        showToast(error.message, 'error');
     }
 }
 
-// Add Message to Chat
 function addMessage(text, sender, audioUrl = null) {
-    const welcomeMsg = chatContainer.querySelector('.welcome-message');
-    if (welcomeMsg) {
-        welcomeMsg.remove();
-    }
+    const welcome = chatContainer.querySelector('.welcome-message');
+    if (welcome) welcome.remove();
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}`;
+    const div = document.createElement('div');
+    div.className = `message ${sender}`;
 
-    const labelDiv = document.createElement('div');
-    labelDiv.className = 'message-label';
-    labelDiv.textContent = sender === 'user' ? 'You' : 'AI Assistant';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
 
-    const textDiv = document.createElement('div');
-    textDiv.className = 'message-text';
-    textDiv.textContent = text;
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = sender === 'user' ? 'You' : 'AI Assistant';
 
-    messageDiv.appendChild(labelDiv);
-    messageDiv.appendChild(textDiv);
+    const txt = document.createElement('div');
+    txt.className = 'msg-text';
+    txt.textContent = text;
+
+    bubble.appendChild(label);
+    bubble.appendChild(txt);
 
     if (audioUrl && sender === 'agent') {
-        const audioPlayer = document.createElement('div');
-        audioPlayer.className = 'audio-player';
-        audioPlayer.innerHTML = `
-            <audio controls>
-                <source src="${audioUrl}" type="audio/wav">
-                Your browser does not support the audio element.
-            </audio>
-        `;
-        messageDiv.appendChild(audioPlayer);
+        const audioWrap = document.createElement('div');
+        audioWrap.className = 'msg-audio';
+        audioWrap.innerHTML = `<audio controls><source src="${API_URL}${audioUrl}" type="audio/wav"></audio>`;
+        bubble.appendChild(audioWrap);
     }
 
-    chatContainer.appendChild(messageDiv);
+    const time = document.createElement('div');
+    time.className = 'msg-time';
+    time.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    div.appendChild(bubble);
+    div.appendChild(time);
+    chatContainer.appendChild(div);
     chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// Update Status Message
-function updateStatus(message, type = 'info') {
-    statusMessage.textContent = message;
-    statusMessage.style.color = type === 'error' ? 'var(--danger-color)' :
-        type === 'success' ? 'var(--success-color)' :
-            type === 'warning' ? 'var(--warning-color)' :
-                'var(--text-secondary)';
-
-    setTimeout(() => {
-        statusMessage.textContent = '';
-    }, 5000);
 }

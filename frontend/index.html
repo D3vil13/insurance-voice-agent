@@ -1,156 +1,143 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🛡️ Insurance AI Assistant | Lombard</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#07070d">
+    <title>PolicyPal AI — Insurance Assistant</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <div class="background-gradient"></div>
 
-    <div class="container">
+    <div class="app">
+
+        <!-- HEADER -->
         <header class="header">
-            <div class="logo">
-                <span class="logo-icon">🛡️</span>
+            <div class="header-left">
+                <div class="logo-icon">🛡️</div>
                 <div class="logo-text">
                     <h1>PolicyPal.ai</h1>
-                    <p class="tagline">Your 24/7 AI Claims Assistant</p>
+                    <span class="tagline">AI Claims Assistant</span>
                 </div>
             </div>
-            <div class="status-indicator" id="connectionStatus">
-                <span class="status-dot"></span>
-                <span class="status-text">Connecting...</span>
+            <div class="header-right">
+                <div class="status-badge" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
             </div>
         </header>
 
+        <!-- MAIN -->
         <div class="main-content">
-            <div class="chat-section">
+
+            <!-- CHAT SECTION -->
+            <section class="chat-section">
                 <div class="chat-container" id="chatContainer">
                     <div class="welcome-message">
                         <div class="welcome-icon">👋</div>
-                        <h2>Welcome to Insurance AI Assistant</h2>
-                        <p>Ask me anything about insurance policies, claims, coverage, or premiums. I'm here to help!
-                        </p>
-                        <div class="quick-questions">
-                            <p class="quick-questions-title">Try asking:</p>
-                            <button class="quick-btn" data-question="What is covered under motor insurance?">🚗 Motor
-                                insurance coverage</button>
-                            <button class="quick-btn" data-question="How do I file a claim?">📋 How to file a
-                                claim</button>
-                            <button class="quick-btn" data-question="What is the renewal process?">🔄 Policy
-                                renewal</button>
+                        <h2>Need help with insurance?</h2>
+                        <p>Ask anything about policies, claims, coverage, or premiums. Try one of these:</p>
+                        <div class="quick-grid">
+                            <button class="quick-btn" data-question="What is covered under motor insurance?">🚗 Motor insurance coverage</button>
+                            <button class="quick-btn" data-question="How do I file a claim?">📋 How to file a claim</button>
+                            <button class="quick-btn" data-question="What is the renewal process?">🔄 Policy renewal</button>
+                            <button class="quick-btn" data-question="What are the premium calculation factors?">💰 Premium calculation</button>
                         </div>
                     </div>
                 </div>
 
+                <!-- INPUT -->
                 <div class="input-section">
-                    <div class="mode-selector">
-                        <button class="mode-btn active" id="voiceMode">
-                            <span class="mode-icon">🎤</span>
-                            <span class="mode-label">Voice</span>
+                    <div class="mode-tabs" id="modeTabs">
+                        <button class="mode-tab active" data-mode="voice">
+                            🎤 Voice
                         </button>
-                        <button class="mode-btn" id="textMode">
-                            <span class="mode-icon">⌨️</span>
-                            <span class="mode-label">Text</span>
+                        <button class="mode-tab" data-mode="text">
+                            ⌨️ Text
                         </button>
                     </div>
 
                     <!-- Voice Input -->
-                    <div class="voice-input-container" id="voiceInputContainer">
-                        <div class="audio-visualizer" id="audioVisualizer">
-                            <div class="visualizer-bar"></div>
-                            <div class="visualizer-bar"></div>
-                            <div class="visualizer-bar"></div>
-                            <div class="visualizer-bar"></div>
-                            <div class="visualizer-bar"></div>
+                    <div class="voice-input-wrap" id="voiceInputWrap">
+                        <button class="call-btn" id="callBtn">📞</button>
+                        <div class="visualizer-wrap" id="visualizerWrap">
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
+                            <div class="viz-bar"></div>
                         </div>
-                        <button class="record-btn" id="recordBtn">
-                            <span class="record-icon">📞</span>
-                            <span class="record-text">Start Call</span>
-                        </button>
-                        <p class="voice-hint">Click to start a voice call with AI assistant</p>
+                        <div class="voice-status" id="voiceStatus">Tap to start a conversation</div>
                     </div>
 
                     <!-- Text Input -->
-                    <div class="text-input-container hidden" id="textInputContainer">
-                        <input type="text" id="textInput" placeholder="Type your insurance question here..."
-                            autocomplete="off">
-                        <button class="send-btn" id="sendBtn">
-                            <span class="send-icon">📤</span>
-                        </button>
+                    <div class="text-input-wrap hidden" id="textInputWrap">
+                        <input type="text" id="textInput" placeholder="Type your question here..." autocomplete="off">
+                        <button class="send-btn" id="sendBtn">📤</button>
                     </div>
 
                     <div class="status-message" id="statusMessage"></div>
                 </div>
-            </div>
+            </section>
 
-            <aside class="info-panel">
+            <!-- INFO PANEL -->
+            <aside class="info-panel" id="infoPanel">
                 <div class="info-card">
-                    <div class="info-icon">💡</div>
-                    <h3>How it works</h3>
-                    <ol class="info-list">
-                        <li>Click "Start Call" for voice mode</li>
-                        <li>Speak your insurance question</li>
-                        <li>AI auto-detects when you stop speaking</li>
-                        <li>Listen to the AI response</li>
-                    </ol>
+                    <h3><span class="icon">🔑</span> API Key</h3>
+                    <div class="api-key-section">
+                        <input type="password" id="sarvamApiKey" placeholder="Sarvam AI API key (optional)">
+                        <button id="saveApiKeyBtn">Save Key</button>
+                        <span class="api-key-hint">Required for voice features. Get one at sarvam.ai</span>
+                    </div>
                 </div>
 
                 <div class="info-card">
-                    <div class="info-icon">🎯</div>
-                    <h3>What I can help with</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="dbDocsCount">-</div>
+                            <div class="stat-label">Knowledge Docs</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="queriesCount">0</div>
+                            <div class="stat-label">Queries</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3><span class="icon">💡</span> How it works</h3>
                     <ul class="info-list">
-                        <li>Policy information & coverage</li>
-                        <li>Claims process & documentation</li>
-                        <li>Premium calculations</li>
-                        <li>Renewal procedures</li>
-                        <li>General insurance queries</li>
+                        <li>Click <strong>Start Call</strong> for voice mode</li>
+                        <li>Speak your insurance question</li>
+                        <li>AI detects when you stop speaking</li>
+                        <li>Listen to the response</li>
                     </ul>
                 </div>
 
-                <div class="info-card stats-card">
-                    <div class="stat">
-                        <div class="stat-value" id="dbDocsCount">-</div>
-                        <div class="stat-label">Knowledge Base Docs</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="queriesCount">0</div>
-                        <div class="stat-label">Queries Answered</div>
-                    </div>
-                </div>
-
                 <div class="info-card">
-                    <div class="info-icon">🔑</div>
-                    <h3>API Key (Optional)</h3>
-                    <p class="info-list" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
-                        Enter your Sarvam AI API key for voice features
-                    </p>
-                    <div class="api-key-input-group">
-                        <input type="password" id="sarvamApiKey" 
-                               placeholder="Paste your Sarvam API key" 
-                               style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:8px;background:var(--input-bg);color:var(--text-primary);font-size:13px;box-sizing:border-box;">
-                        <button id="saveApiKeyBtn" style="width:100%;margin-top:6px;padding:6px;border:none;border-radius:8px;background:var(--primary-color);color:white;cursor:pointer;font-size:13px;">Save Key</button>
-                    </div>
+                    <h3><span class="icon">🎯</span> What I can help with</h3>
+                    <ul class="info-list">
+                        <li>Policy information &amp; coverage</li>
+                        <li>Claims process &amp; documentation</li>
+                        <li>Premium calculations</li>
+                        <li>Renewal procedures</li>
+                    </ul>
                 </div>
             </aside>
+
         </div>
     </div>
 
-    <footer class="footer">
-        <p>© 2025 . AI Assistant powered by advanced language models.</p>
-        <p class="disclaimer">This is an AI assistant. For official policy details, please contact at our toll free
-            number
-            .</p>
-    </footer>
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
 
     <script src="voice-detector.js"></script>
     <script src="app.js"></script>
 </body>
-
 </html>

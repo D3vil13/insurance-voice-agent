@@ -3,11 +3,10 @@ Utility Functions for Voice Agent
 Includes: Audio processing, RAG search, LLM generation
 """
 import logging
-import numpy as np
 import requests
 import json
 import chromadb
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +30,14 @@ client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 collection = client.get_or_create_collection(name="insurance_docs")
 
 # Initialize embedder (use local cache, don't download)
-embedder = HuggingFaceEmbeddings(
-    model_name=EMBEDDER_MODEL,
-    model_kwargs={'device': 'cpu'},
-    encode_kwargs={'normalize_embeddings': True}
-)
+embedder = SentenceTransformer(EMBEDDER_MODEL, device="cpu")
 
 
 # ========== RAG FUNCTIONS ==========
 
 def semantic_search(query_text: str, top_k: int = RAG_TOP_K):
     """Search vector database for relevant documents"""
-    query_emb = embedder.embed_query(query_text)
+    query_emb = embedder.encode(query_text, normalize_embeddings=True).tolist()
     results = collection.query(
         query_embeddings=[query_emb],
         n_results=top_k

@@ -5,14 +5,11 @@ python-multipart>=0.0.6
 
 # Database and Embeddings
 chromadb>=0.4.18
-langchain-community>=0.0.38
 sentence-transformers>=2.2.2
 
 # LLM Integration
 requests>=2.31.0
-langgraph>=0.0.26
 
 # Utilities
 python-dotenv>=1.0.0
-numpy>=1.26.0
 pydantic>=2.5.0
