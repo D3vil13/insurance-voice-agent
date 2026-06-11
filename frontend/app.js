@@ -1,6 +1,10 @@
 const API_URL = (() => {
     const saved = localStorage.getItem('API_URL');
-    return saved || 'http://localhost:8000';
+    if (saved) return saved;
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
+    return 'https://ai-voice-agent-fjqi.onrender.com';
 })();
 
 // DOM

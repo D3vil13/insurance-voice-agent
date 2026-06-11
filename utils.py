@@ -282,7 +282,7 @@ Answer:"""
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://insurance-voice-agent-0o7q.onrender.com",
+                "HTTP-Referer": "https://ai-voice-agent-fjqi.onrender.com",
                 "X-Title": "Insurance Assistant",
             },
             data=json.dumps({
